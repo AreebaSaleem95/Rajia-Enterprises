@@ -1,0 +1,453 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// 1. IDENTITY, ROLES & AUTHENTICATION
+// -------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  phone        String?
+  role         String    @default("ADMIN") // SUPER_ADMIN, ADMIN, SALES_MANAGER, SALES_REP, PRODUCTION_MGR, INVENTORY_MGR
+  status       String    @default("ACTIVE")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  assignedLeads     Lead[]              @relation("LeadAssignee")
+  assignedMeetings  Meeting[]           @relation("MeetingHost")
+  createdQuotes     Quotation[]         @relation("QuoteCreator")
+  auditLogs         AuditLog[]
+  stockTransactions StockTransaction[]
+}
+
+// -------------------------------------------------------------
+// 2. PRODUCTS, VARIANTS & SPECIFICATIONS
+// -------------------------------------------------------------
+
+model ProductCategory {
+  id          String    @id @default(uuid())
+  slug        String    @unique
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id           String    @id @default(uuid())
+  sku          String    @unique // e.g. VST-BLK-100
+  slug         String    @unique
+  name         String
+  color        String
+  colorHex     String    @default("#000000")
+  fabric       String    @default("100% Cotton")
+  gsm          String    @default("160–180")
+  stitching    String    @default("Overlock")
+  packing      String    @default("Bulk / Box")
+  description  String
+  featuresJson String?   // JSON array of key selling features
+  featured     Boolean   @default(false)
+  status       String    @default("ACTIVE")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  categoryId String
+  category   ProductCategory @relation(fields: [categoryId], references: [id])
+
+  images      ProductImage[]
+  variants    ProductVariant[]
+  inventory   InventoryItem[]
+  cartItems   CartItem[]
+  inquiryItems InquiryItem[]
+  quoteItems  QuotationItem[]
+  orderItems  OrderItem[]
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  url       String
+  alt       String
+  viewType  String   @default("front") // front, back, side, fabric, stitching, folded
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ProductVariant {
+  id        String   @id @default(uuid())
+  productId String
+  size      String   // S, M, L, XL, 2XL, 3XL
+  sku       String   @unique
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 3. INQUIRY CART & PUBLIC WHOLESALE INQUIRIES
+// -------------------------------------------------------------
+
+model Cart {
+  id        String     @id @default(uuid())
+  sessionId String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String
+  size      String
+  quantity  Int      @default(500)
+  notes     String?
+  packing   String   @default("Standard Export Box")
+  createdAt DateTime @default(now())
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model InquiryRequest {
+  id                 String    @id @default(uuid())
+  inquiryNumber      String    @unique // e.g. INQ-2026-0001
+  customerName       String
+  companyName        String
+  email              String
+  whatsapp           String
+  country            String
+  city               String?
+  destinationPort    String?
+  estimatedTotalQty  Int       @default(0)
+  packingPreference  String?
+  additionalMessage  String?
+  status             String    @default("NEW") // NEW, REVIEWED, QUOTE_DRAFTED, COMPLETED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  items      InquiryItem[]
+  lead       Lead?
+  quotations Quotation[]
+}
+
+model InquiryItem {
+  id               String  @id @default(uuid())
+  inquiryRequestId String
+  productId        String
+  size             String
+  quantity         Int
+  packingOption    String?
+  notes            String?
+
+  inquiryRequest InquiryRequest @relation(fields: [inquiryRequestId], references: [id], onDelete: Cascade)
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 4. CRM: LEADS, CUSTOMERS, ACTIVITIES & FOLLOW-UPS
+// -------------------------------------------------------------
+
+model Lead {
+  id               String    @id @default(uuid())
+  leadNumber       String    @unique // e.g. LD-2026-0001
+  name             String
+  company          String
+  email            String
+  phone            String?
+  whatsapp         String?
+  country          String
+  city             String?
+  businessType     String    @default("Wholesaler") // Wholesaler, Importer, Retail Chain, Distributor, Private Label
+  leadSource       String    @default("Website Inquiry") // Website Inquiry, WhatsApp, Direct Referral, Trade Show
+  interestedProducts String?
+  requiredQuantity Int       @default(0)
+  preferredGsm     String?   @default("160–180")
+  requiredSizes    String?   // "S, M, L, XL, 2XL, 3XL"
+  packingRequirements String?
+  destination      String?
+  status           String    @default("NEW") // NEW, CONTACTED, QUALIFIED, QUOTATION_SENT, NEGOTIATION, WON, LOST
+  priority         String    @default("MEDIUM") // HIGH, MEDIUM, LOW
+  internalNotes    String?
+  lastContactAt    DateTime?
+  nextFollowUpAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  assignedToId String?
+  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id])
+
+  inquiryRequestId String?         @unique
+  inquiryRequest   InquiryRequest? @relation(fields: [inquiryRequestId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  activities LeadActivity[]
+  followUps  FollowUp[]
+}
+
+model Customer {
+  id                   String    @id @default(uuid())
+  customerNumber       String    @unique // e.g. CUST-2026-0001
+  name                 String
+  company              String
+  contactPerson        String?
+  email                String    @unique
+  phone                String?
+  whatsapp             String?
+  country              String
+  billingAddress       String?
+  shippingAddress      String?
+  category             String    @default("Wholesaler") // Wholesaler, Importer, Retailer, Distributor, Private Label Buyer
+  status               String    @default("ACTIVE") // ACTIVE, INACTIVE, BLACKLISTED
+  totalRecordedPurchases Float   @default(0)
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  leads      Lead[]
+  quotations Quotation[]
+  orders     Order[]
+  meetings   Meeting[]
+}
+
+model LeadActivity {
+  id          String   @id @default(uuid())
+  leadId      String
+  type        String   // NOTE, CALL, EMAIL, WHATSAPP, STATUS_CHANGE
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model FollowUp {
+  id          String    @id @default(uuid())
+  leadId      String
+  dueDate     DateTime
+  description String
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 5. QUOTATIONS & ORDERS
+// -------------------------------------------------------------
+
+model Quotation {
+  id               String    @id @default(uuid())
+  quotationNumber  String    @unique // e.g. QT-2026-0001
+  inquiryRequestId String?
+  customerId       String?
+  incoterm         String    @default("FOB Karachi")
+  originPort       String    @default("Karachi Port, Pakistan")
+  destinationPort  String?
+  currency         String    @default("USD")
+  exchangeRate     Float     @default(1.0)
+  subtotal         Float     @default(0)
+  discountAmount   Float     @default(0)
+  packingCost      Float     @default(0)
+  shippingCost     Float     @default(0)
+  totalAmount      Float     @default(0)
+  paymentTerms     String    @default("30% Advance, 70% against Bill of Lading (B/L)")
+  deliveryTimeline String    @default("25–30 Days from order confirmation")
+  validUntil       DateTime
+  status           String    @default("DRAFT") // DRAFT, SENT, VIEWED, NEGOTIATION, ACCEPTED, REJECTED, EXPIRED
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("QuoteCreator", fields: [createdById], references: [id])
+
+  inquiryRequest InquiryRequest? @relation(fields: [inquiryRequestId], references: [id])
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+
+  items  QuotationItem[]
+  orders Order[]
+}
+
+model QuotationItem {
+  id          String  @id @default(uuid())
+  quotationId String
+  productId   String
+  size        String
+  quantity    Int
+  unitPrice   Float
+  lineTotal   Float
+  notes       String?
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+}
+
+model Order {
+  id              String    @id @default(uuid())
+  orderNumber     String    @unique // e.g. ORD-2026-0001
+  customerId      String
+  quotationId     String?
+  totalQuantity   Int
+  currency        String    @default("USD")
+  totalAmount     Float
+  paymentStatus   String    @default("PENDING") // PENDING, ADVANCE_RECEIVED, FULLY_PAID, REFUNDED
+  productionStatus String   @default("CONFIRMED") // PENDING, CONFIRMED, IN_PRODUCTION, QUALITY_CHECK, PACKED, DISPATCHED, DELIVERED, CANCELLED
+  destination     String
+  incoterm        String    @default("FOB Karachi")
+  packingType     String    @default("Export Standard Master Cartons")
+  shippingInfo    String?
+  targetDeliveryDate DateTime?
+  internalNotes   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  quotation Quotation? @relation(fields: [quotationId], references: [id])
+
+  items             OrderItem[]
+  productionBatches ProductionBatch[]
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  productId   String
+  size        String
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// -------------------------------------------------------------
+// 6. MEETING BOOKING SYSTEM
+// -------------------------------------------------------------
+
+model Meeting {
+  id             String    @id @default(uuid())
+  bookingNumber  String    @unique // e.g. MTG-2026-0001
+  fullName       String
+  companyName    String
+  email          String
+  whatsapp       String
+  country        String
+  meetingType    String    // Wholesale Inquiry, Product Discussion, Private Label Discussion, Export Partnership, Factory Visit, Video Conference
+  meetingMethod  String    // Google Meet, Phone Call, WhatsApp Call, Factory Visit
+  meetingDate    DateTime
+  timeSlot       String    // e.g. "10:00 AM - 10:45 AM PKT"
+  agenda         String?
+  status         String    @default("PENDING") // PENDING, CONFIRMED, RESCHEDULED, COMPLETED, CANCELLED
+  adminNotes     String?
+  meetingLink    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  hostUserId String?
+  hostUser   User?   @relation("MeetingHost", fields: [hostUserId], references: [id])
+}
+
+model MeetingSlot {
+  id        String   @id @default(uuid())
+  dayOfWeek Int      // 1 = Mon, ..., 6 = Sat
+  startTime String   // "09:00"
+  endTime   String   // "10:00"
+  isActive  Boolean  @default(true)
+}
+
+// -------------------------------------------------------------
+// 7. PRODUCTION & INVENTORY MANAGEMENT
+// -------------------------------------------------------------
+
+model ProductionBatch {
+  id            String    @id @default(uuid())
+  batchNumber   String    @unique // e.g. BATCH-2026-001
+  orderId       String?
+  productSku    String
+  plannedQty    Int
+  actualQty     Int       @default(0)
+  fabricLot     String?
+  gsm           String    @default("160–180")
+  cuttingStatus String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  stitchingStatus String  @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  finishingStatus String  @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  qcStatus      String    @default("PENDING") // PENDING, PASSED, FAILED
+  packingStatus String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  startDate     DateTime  @default(now())
+  completionDate DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  order Order? @relation(fields: [orderId], references: [id])
+}
+
+model InventoryItem {
+  id             String   @id @default(uuid())
+  productId      String
+  size           String
+  availableStock Int      @default(0)
+  reservedStock  Int      @default(0)
+  dispatchedQty  Int      @default(0)
+  lowStockAlert  Int      @default(200)
+  warehouseCode  String   @default("WH-FSD-01")
+  updatedAt      DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, size, warehouseCode])
+}
+
+model StockTransaction {
+  id            String   @id @default(uuid())
+  productId     String
+  size          String
+  quantity      Int
+  type          String   // PRODUCTION_INWARD, DISPATCH_OUTWARD, ADJUSTMENT, RESERVATION
+  referenceType String?  // BATCH, ORDER, AUDIT
+  referenceId   String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  performedById String?
+  performedBy   User?   @relation(fields: [performedById], references: [id])
+}
+
+// -------------------------------------------------------------
+// 8. AUDIT LOGS & SYSTEM
+// -------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String   // CREATE, UPDATE, DELETE, LOGIN, APPROVE, DISPATCH
+  entityType String   // LEAD, QUOTATION, ORDER, PRODUCTION, MEETING, USER
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+}

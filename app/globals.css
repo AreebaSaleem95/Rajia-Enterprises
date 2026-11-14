@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary-navy: #0C294F;
+  --color-dark-blue: #194072;
+  --color-royal-blue: #2B6CB0;
+  --color-gold-accent: #C59B27;
+  --color-gold-light: #DFB743;
+  --color-bg-light: #F8FAFC;
+  --color-slate-border: #E2E8F0;
+  --color-charcoal-text: #1E293B;
+  --color-muted-text: #64748B;
+}
+
+@layer base {
+  body {
+    @apply bg-[#F8FAFC] text-slate-800 antialiased selection:bg-[#0C294F] selection:text-amber-300;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight font-semibold text-[#0C294F];
+  }
+}
+
+/* Custom industrial scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Glass & Card subtle shadows */
+.card-elevation {
+  box-shadow: 0 4px 20px -2px rgba(12, 41, 79, 0.06), 0 2px 6px -1px rgba(12, 41, 79, 0.04);
+}
+
+.card-elevation-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-elevation-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(12, 41, 79, 0.12), 0 4px 10px -2px rgba(12, 41, 79, 0.08);
+}
