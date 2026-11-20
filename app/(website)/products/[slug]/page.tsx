@@ -15,31 +15,39 @@ interface ProductDetailPageProps {
 export default async function ProductDetailPage({ params }: ProductDetailPageProps) {
   const { slug } = params;
 
-  const product = await prisma.product.findUnique({
-    where: { slug },
-    include: {
-      category: true,
-      images: { orderBy: { sortOrder: "asc" } },
-      variants: true,
-      inventory: true,
-    },
-  });
+  let product = null;
+  let relatedProducts: any[] = [];
+
+  try {
+    product = await prisma.product.findUnique({
+      where: { slug },
+      include: {
+        category: true,
+        images: { orderBy: { sortOrder: "asc" } },
+        variants: true,
+        inventory: true,
+      },
+    });
+
+    if (product) {
+      relatedProducts = await prisma.product.findMany({
+        where: {
+          status: "ACTIVE",
+          id: { not: product.id },
+        },
+        take: 2,
+        include: {
+          category: true,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching product detail:", error);
+  }
 
   if (!product) {
     notFound();
   }
-
-  // Related products
-  const relatedProducts = await prisma.product.findMany({
-    where: {
-      status: "ACTIVE",
-      id: { not: product.id },
-    },
-    take: 2,
-    include: {
-      category: true,
-    },
-  });
 
   const isBedding = product.category?.slug?.includes("bed") || product.category?.name?.toLowerCase().includes("bed");
 

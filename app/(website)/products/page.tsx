@@ -8,15 +8,20 @@ import { getProductGallery } from "@/lib/product-images";
 export const revalidate = 0;
 
 async function getProducts() {
-  return await prisma.product.findMany({
-    where: { status: "ACTIVE" },
-    include: {
-      category: true,
-      images: { orderBy: { sortOrder: "asc" } },
-      variants: true,
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  try {
+    return await prisma.product.findMany({
+      where: { status: "ACTIVE" },
+      include: {
+        category: true,
+        images: { orderBy: { sortOrder: "asc" } },
+        variants: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  } catch (error) {
+    console.error("Products fetch error:", error);
+    return [];
+  }
 }
 
 export default async function ProductsCatalogPage({

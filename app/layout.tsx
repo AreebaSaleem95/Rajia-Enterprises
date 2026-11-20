@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/lib/cart-context";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "RAJIA ENTERPRISES | House of VESTO® — Manufacturer & Exporter",
@@ -26,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en">
       <body className="min-h-screen flex flex-col bg-[#F8FAFC] text-slate-800 font-sans">
         <CartProvider>{children}</CartProvider>
       </body>

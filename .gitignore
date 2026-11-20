@@ -16,7 +16,14 @@ tsconfig.tsbuildinfo
 __pycache__/
 *.pyc
 
+generated/
+
+prisma/*.backup.prisma
+prisma/schema.postgres-backup.prisma
+prisma/schema.sqlite.prisma
+
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
+!prisma/dev.db
